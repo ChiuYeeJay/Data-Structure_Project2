@@ -139,7 +139,7 @@ robot::robot(){
     pos = Rpos = TileMap->Rpos;
     maxbattery = battery = TileMap->B;
     while(!footprint.empty()) footprint.pop();
-    footprint.push(Rpos);
+    // footprint.push(Rpos);
 }
 void robot::jump(){
     tile_map &tm = *TileMap;
@@ -154,7 +154,7 @@ void robot::jump(){
         if(!tm.get_tile(p,"robot jump3").cleaned) tm.get_tile(p,"robot jump3").clean();
     }
     pos = target.pos;
-    battery -= target.related.size();
+    battery -= (target.related.size() - 1);
 }
 void robot::walk(){
     tile_map &tm = *TileMap;
@@ -174,7 +174,7 @@ void robot::walk(){
     }
     //移動至最好的位置
     pos = best;
-    footprint.push(best);
+    if(best != Rpos) footprint.push(best);
     if(!tm.get_tile(best,"robot walk4").cleaned) tm.get_tile(best,"robot walk4.5").clean();
     //減少電量
     if(is_on_recharge()) battery = maxbattery;
@@ -249,13 +249,14 @@ int main(int argc, char *argv[]){
     ofstream outfile("final.path",ios::out);
     TileMap = new tile_map(ifstream(argv[1],ios::in));
     robot* Robot = new robot();
-    // TileMap->print_out(2);
+    TileMap->print_out(2);
     while(!TileMap->todo.empty()){
         Robot->jump();
         while(!Robot->is_on_recharge()) Robot->walk();
         while(!TileMap->todo.empty() && TileMap->get_tile(TileMap->todo.top(),"robot jump1").cleaned) TileMap->todo.pop();
-        // DEBUG(*Robot);
+        DEBUG(*Robot);
     }
-    // TileMap->print_out(3);
+    Robot->footprint.push(Robot->Rpos);
+    TileMap->print_out(3);
     Robot->print_out(outfile);
 }
