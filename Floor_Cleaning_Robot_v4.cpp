@@ -8,7 +8,7 @@
 using namespace std;
 
 // enum tile_type {floor = 0, wall = 1, recharge = 2, unknown = 3};
-const int direction[4][2] = {{0,1},{0,-1},{1,0},{-1,0}};
+// const int direction[4][2] = {{1,0},{-1,0},{0,1},{0,-1}};
 tile_map* TileMap;
 
 int CharToType(char c){
@@ -20,10 +20,9 @@ int CharToType(char c){
     }
 }
 
-//class quartet
-quartet::quartet(int r, int c, int s, vector<position> v){
-    row = r;
-    col = c;
+//class trio
+trio::trio(position p, int s, vector<position> v){
+    pos = p;
     step = s;
     related = v;
 }
@@ -37,6 +36,8 @@ void tile::set(int t, int row, int col){
     minstep = -1;
     cleaned = false;
     type = t;
+    rounded_visited = -1;
+    search_visited = -1;
     pos = position(row,col);
 }
 void tile::clean(){
@@ -53,6 +54,8 @@ tile_map::tile_map(ifstream infile){
     char temp;
     infile >> rows >> cols >> B;
     Rpos.col = Rpos.row = -1;
+    search_id = 0;
+    round_id = 0;
     map = new tile*[rows];
     for(int i=0;i<rows;i++){
         map[i] = new tile[cols];
@@ -78,7 +81,9 @@ tile_map::tile_map(ifstream infile){
     }
     calculate_minstep();
 }
-bool tile_map::is_walkable(int r, int c){
+bool tile_map::is_walkable(position pos){
+    int r = pos.row;
+    int c = pos.col;
     if(r<0 || r>=rows) return false;
     if(c<0 || r>=cols) return false;
     if(map[r][c].type == wall) return false;
@@ -86,38 +91,76 @@ bool tile_map::is_walkable(int r, int c){
 }
 
 void tile_map::calculate_minstep(){
-    queue<quartet> Q;
-    quartet tp;
+    queue<trio> Q;
+    trio tp;
     vector<position> vp;
     while(!Q.empty()) Q.pop();
-
-    Q.push(quartet(Rpos.row,Rpos.col,0));
+    Q.push(trio(Rpos,0));
     get_tile(Rpos,"root clean").cleaned = true;
     while(!Q.empty()){
         tp = Q.front();
         vp = tp.related;
-        vp.push_back(position(tp.row,tp.col));
-        if(map[tp.row][tp.col].minstep == -1){
-            get_tile(position(tp.row,tp.col),"calculate_minstep1").minstep = tp.step;
-            get_tile(position(tp.row,tp.col),"calculate_minstep2").related = vp;
-            if(is_walkable(tp.row+1,tp.col)) Q.push(quartet(tp.row+1,tp.col,tp.step+1,vp));
-            if(is_walkable(tp.row-1,tp.col)) Q.push(quartet(tp.row-1,tp.col,tp.step+1,vp));
-            if(is_walkable(tp.row,tp.col+1)) Q.push(quartet(tp.row,tp.col+1,tp.step+1,vp));
-            if(is_walkable(tp.row,tp.col-1)) Q.push(quartet(tp.row,tp.col-1,tp.step+1,vp));
-            todo.push(position(tp.row,tp.col));
+        vp.push_back(tp.pos);
+        if(get_tile(tp.pos,"calculate_minstep3").minstep == -1){
+            get_tile(tp.pos,"calculate_minstep1").minstep = tp.step;
+            get_tile(tp.pos,"calculate_minstep2").related = vp;
+            for(int i=0;i<4;i++){
+                if(is_walkable(tp.pos.stepwise_move(i)) && get_tile(tp.pos.stepwise_move(i),"calculate_minstep4").minstep==-1){
+                    Q.push(trio(tp.pos.stepwise_move(i),tp.step+1,vp));
+                }
+            }
+            todo.push(tp.pos);
         }
         Q.pop();
         // printf("h\n");
     }
 }
-
 tile& tile_map::get_tile(position p, const char* origin){
     if(p.row<0 || p.row>=rows || p.col<0 || p.col>=cols){
         printf("Error: get_tile failed, from %s\n", origin);
         exit(6);
     }
-    // printf("get_tile(%d,%d):%d\n", p.row, p.col, map[p.row][p.col].cleaned);
+    // printf("get_tile(%d,%d):%d\n", p.row, p.col, map[p.row][p.col].minstep);
     return map[p.row][p.col];
+}
+trio tile_map::find_uncleaned(position init, int battery){
+    queue<trio> Q;
+    trio tp;
+    trio best;
+    vector<position> vp;
+    tile tt;
+    int count = 0;
+    search_id++;
+    while(!Q.empty()) Q.pop();
+    for(int i=0;i<4;i++) if(is_walkable(init.stepwise_move(i))) Q.push(trio(init.stepwise_move(i),1));
+    // Q.push(trio(init,0)); 
+    get_tile(Rpos,"root clean").search_visited = search_id;
+    while(!Q.empty() && count++<20){
+        tp = Q.front();
+        if(best.step != -1 && best.step < tp.step) break;
+        vp = tp.related;
+        vp.push_back(tp.pos);
+        tt = get_tile(tp.pos,"find_uncleaned1");
+        if(tt.search_visited != search_id && tp.step + tt.minstep < battery-1){
+            if(tt.cleaned){
+                for(int i=0;i<4;i++){
+                    if(is_walkable(tp.pos.stepwise_move(i))){
+                        Q.push(trio(tp.pos.stepwise_move(i),tp.step+1,vp));
+                    }
+                }
+            }
+            else{
+                if(best.step == -1 || tile_compare(tt,get_tile(best.pos,"find_uncleaned2"))){
+                    best = tp;
+                    best.related.push_back(tp.pos);
+                }
+            }
+        }
+        tt.search_visited = search_id;
+        Q.pop();
+    }
+    // printf("#hop track size:%ld\n",best.related.size());
+    return best;
 }
 void tile_map::print_out(int t){
     for(int i=0;i<rows;i++){
@@ -125,7 +168,7 @@ void tile_map::print_out(int t){
             if(t == 1) printf("%d ", map[i][j].type);
             else if(t == 2) printf("%3d ", map[i][j].minstep);
             else{
-                if(is_walkable(i,j)) printf("%c ", map[i][j].cleaned? '.' : '+');
+                if(is_walkable(position(i,j))) printf("%c ", map[i][j].cleaned? '.' : '+');
                 else printf("M ");
             }
         }
@@ -162,7 +205,7 @@ void robot::walk(){
     //找到適合的移動方向
     for(int i=0;i<4;i++){
         tpos = position(pos.row+direction[i][0], pos.col+direction[i][1]);
-        if(tm.is_walkable(tpos.row, tpos.col) && tm.get_tile(tpos,"robot walk1").minstep <= battery-1){
+        if(tm.is_walkable(tpos) && tm.get_tile(tpos,"robot walk1").minstep <= battery-1){
             if(best.row == -1 || tile_compare(tm.get_tile(tpos,"robot walk2"), tm.get_tile(best,"robot walk3"))){
                 best = tpos;
             }
@@ -184,7 +227,23 @@ void robot::walk(){
         exit(5);
     }
 }
-bool robot::tile_compare(const tile& a, const tile& b){
+void robot::hop(){
+    tile_map& tm = *TileMap;
+    trio best;
+    best = tm.find_uncleaned(pos,battery);
+    if(best.step == -1) {
+        walk();
+    }
+    else{
+        tm.get_tile(best.pos,"robot hop2").clean();
+        for(int i=0;i<best.related.size();i++){
+            footprint.push(best.related[i]);
+        }
+        pos = best.pos;
+        battery -= (best.related.size());
+    }
+}
+bool tile_compare(const tile& a, const tile& b){
     int target_distance = (TileMap->todo.empty())? 0 : TileMap->get_tile(TileMap->todo.top(),"tile compare1").minstep;
     if(a.cleaned != b.cleaned) return !a.cleaned;
     else if(abs(target_distance - a.minstep) != abs(target_distance - b.minstep)) return (abs(target_distance - a.minstep) < abs(target_distance - b.minstep));
@@ -206,19 +265,19 @@ void DEBUG(robot &R){
     static int count = 0;
     static bool stop = false;
     static int maxround;
-    printf("#(%d,%d), battery=%d, footprintsize=%ld, todosize=%ld\n", R.pos.row, R.pos.col,\
+    printf("(%d,%d), battery=%d, footprintsize=%ld, todosize=%ld\n", R.pos.row, R.pos.col,\
      R.battery, R.footprint.size(), TileMap->todo.size());
-    // if(!stop) cin >> d;
-    if(!stop) d = "a";
+    if(!stop) cin >> d;
+    // if(!stop) d = "a";
     else{
         if(maxround > count){
             count++;
-            TileMap->print_out(3);
         }
         else{
             stop = false;
             maxround = 0;
             count = 0;
+            TileMap->print_out(3);
         }
     }
 
@@ -242,23 +301,31 @@ void DEBUG(robot &R){
 
 int main(int argc, char *argv[]){
     string debug;
+    start = clock();
     if(argc != 2) {
         printf("Error: amount of file in file out is wrong\n");
         exit(1);
     }
-    ofstream outfile("final.path",ios::out);
+    // ofstream outfile("final.path",ios::out);
     TileMap = new tile_map(ifstream(argv[1],ios::in));
     robot* Robot = new robot();
     TileMap->print_out(2);
+    printf("#build time: %.2fs, \n", float(clock() - start)/CLOCKS_PER_SEC);
     while(!TileMap->todo.empty()){
+        last = clock();
         Robot->jump();
+        // printf("$");
         while(!Robot->is_on_recharge()) {
-            Robot->walk();
+            Robot->hop();
             while(!TileMap->todo.empty() && TileMap->get_tile(TileMap->todo.top(),"robot jump1").cleaned) TileMap->todo.pop();
+            // printf("#hop:(%d,%d)\n", Robot->pos.row, Robot->pos.col);
         }
+        // printf("\n");
         DEBUG(*Robot);
+        printf("round time: %.2lfs, ", float(clock()-last)/CLOCKS_PER_SEC);
     }
     Robot->footprint.push(Robot->Rpos);
     TileMap->print_out(3);
     Robot->print_out(outfile);
+    printf("time: %.2lfs\n", double(clock() - start)/CLOCKS_PER_SEC);
 }
