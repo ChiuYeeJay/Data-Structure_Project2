@@ -22,12 +22,14 @@ int CharToType(char c){
 }
 
 void set_maxBFS(float t){
-    if(t<0.1) max_BFS = 500;
-    else if(t < 0.5) max_BFS = 250;
-    else if(t< 0.75) max_BFS = 150;
-    else if(t < 1) max_BFS = 80;
-    else if(t < 2) max_BFS = 50;
-    else if(t < 3) max_BFS = 20;
+    // if(t<0.1) max_BFS = 500;
+    // else if(t < 0.5) max_BFS = 250;
+    // else if(t< 0.75) max_BFS = 150;
+    // else if(t < 1) max_BFS = 80;
+    // else if(t < 2) max_BFS = 50;
+    // else if(t < 3) max_BFS = 20;
+    // else max_BFS = 0;
+    if(t<3) max_BFS = 10000;
     else max_BFS = 0;
 }
 
@@ -47,7 +49,6 @@ void tile::set(int t, int row, int col){
     minstep = -1;
     cleaned = false;
     type = t;
-    rounded_visited = -1;
     search_visited = -1;
     pos = position(row,col);
 }
@@ -66,7 +67,6 @@ tile_map::tile_map(ifstream infile){
     infile >> rows >> cols >> B;
     Rpos.col = Rpos.row = -1;
     search_id = 0;
-    round_id = 0;
     map = new tile*[rows];
     for(int i=0;i<rows;i++){
         map[i] = new tile[cols];
@@ -160,11 +160,9 @@ trio tile_map::find_uncleaned(position init, int battery){
                     }
                 }
             }
-            else{
-                if(best.step == -1 || tile_compare(tt,get_tile(best.pos,"find_uncleaned2"))){
-                    best = tp;
-                    best.related.push_back(tp.pos);
-                }
+            if(best.step == -1 || tile_compare(tt,get_tile(best.pos,"find_uncleaned2"))){
+                best = tp;
+                best.related.push_back(tp.pos);
             }
         }
         tt.search_visited = search_id;
@@ -246,7 +244,7 @@ void robot::hop(){
         walk();
     }
     else{
-        tm.get_tile(best.pos,"robot hop2").clean();
+        if(!tm.get_tile(best.pos,"robot hop3").cleaned) tm.get_tile(best.pos,"robot hop2").clean();
         for(int i=0;i<best.related.size();i++){
             footprint.push(best.related[i]);
         }
@@ -338,7 +336,7 @@ int main(int argc, char *argv[]){
         printf("round time: %.3lfs\n", float(clock()-last)/CLOCKS_PER_SEC);
     }
     Robot->footprint.push(Robot->Rpos);
-    TileMap->print_out(3);
+    // TileMap->print_out(3);
     Robot->print_out(outfile);
     printf("time: %.3lfs\n", double(clock() - start)/CLOCKS_PER_SEC);
 }

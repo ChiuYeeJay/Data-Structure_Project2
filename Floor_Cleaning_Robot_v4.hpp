@@ -40,7 +40,6 @@ public:
     int minstep;
     int type;
     bool cleaned;
-    int rounded_visited;
     int search_visited;
     position pos;
     vector<position> related;
@@ -58,7 +57,7 @@ public:
     stack<position> todo;
     int cols, rows;
     int B;
-    int search_id, round_id;
+    int search_id;
 public:
     tile_map(ifstream infile);
     bool is_walkable(position pos);
