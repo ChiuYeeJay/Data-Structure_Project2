@@ -10,6 +10,7 @@ using namespace std;
 // enum tile_type {floor = 0, wall = 1, recharge = 2, unknown = 3};
 // const int direction[4][2] = {{1,0},{-1,0},{0,1},{0,-1}};
 tile_map* TileMap;
+int max_BFS;
 
 int CharToType(char c){
     switch(c){
@@ -18,6 +19,16 @@ int CharToType(char c){
         case 'R': return recharge;
         default : return unknown;
     }
+}
+
+void set_maxBFS(float t){
+    if(t<0.1) max_BFS = 500;
+    else if(t < 0.5) max_BFS = 250;
+    else if(t< 0.75) max_BFS = 150;
+    else if(t < 1) max_BFS = 80;
+    else if(t < 2) max_BFS = 50;
+    else if(t < 3) max_BFS = 20;
+    else max_BFS = 0;
 }
 
 //class trio
@@ -135,7 +146,7 @@ trio tile_map::find_uncleaned(position init, int battery){
     for(int i=0;i<4;i++) if(is_walkable(init.stepwise_move(i))) Q.push(trio(init.stepwise_move(i),1));
     // Q.push(trio(init,0)); 
     get_tile(Rpos,"root clean").search_visited = search_id;
-    while(!Q.empty() && count++<20){
+    while(!Q.empty() && count++<max_BFS){
         tp = Q.front();
         if(best.step != -1 && best.step < tp.step) break;
         vp = tp.related;
@@ -253,7 +264,9 @@ bool robot::is_on_recharge(){
     return pos == Rpos;
 }
 void robot::print_out(ofstream& ofs){
-    ofs << footprint.size() - 1l << endl;
+    int length = footprint.size() - 1l;
+    if(length == 1) length = 0;
+    ofs << length << endl;
     while(!footprint.empty()){
         ofs << footprint.front().row << " " << footprint.front().col << endl;
         footprint.pop();
@@ -310,11 +323,11 @@ int main(int argc, char *argv[]){
     TileMap = new tile_map(ifstream(argv[1],ios::in));
     robot* Robot = new robot();
     TileMap->print_out(2);
-    printf("#build time: %.2fs, \n", float(clock() - start)/CLOCKS_PER_SEC);
+    printf("#build time: %.3fs, \n", float(clock() - start)/CLOCKS_PER_SEC);
+    set_maxBFS(float(clock() - start)/CLOCKS_PER_SEC);
     while(!TileMap->todo.empty()){
         last = clock();
         Robot->jump();
-        // printf("$");
         while(!Robot->is_on_recharge()) {
             Robot->hop();
             while(!TileMap->todo.empty() && TileMap->get_tile(TileMap->todo.top(),"robot jump1").cleaned) TileMap->todo.pop();
@@ -322,10 +335,10 @@ int main(int argc, char *argv[]){
         }
         // printf("\n");
         DEBUG(*Robot);
-        printf("round time: %.2lfs, ", float(clock()-last)/CLOCKS_PER_SEC);
+        printf("round time: %.3lfs\n", float(clock()-last)/CLOCKS_PER_SEC);
     }
     Robot->footprint.push(Robot->Rpos);
     TileMap->print_out(3);
     Robot->print_out(outfile);
-    printf("time: %.2lfs\n", double(clock() - start)/CLOCKS_PER_SEC);
+    printf("time: %.3lfs\n", double(clock() - start)/CLOCKS_PER_SEC);
 }
