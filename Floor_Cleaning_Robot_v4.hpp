@@ -74,13 +74,12 @@ public:
     int battery;
     position Rpos;
     position pos;
-    queue<position> footprint;
+    vector<position> footprint;
 public:
     robot();
     void walk();
     void jump();
     void hop();
-    // bool tile_compare(const tile& a, const tile& b);
     bool is_on_recharge();
     void print_out(ofstream& ofs);
 };

@@ -34,13 +34,16 @@ void set_maxBFS(float t){
     else if(t < 1.5) max_BFS = 75;
     else if(t < 2) max_BFS = 35;
     else if(t < 2.6) max_BFS = 20;
+    else if(t < 3.5) max_BFS = 20;
     else max_BFS = 0;
 }
 
 bool tile_compare(const tile& a, const tile& b){
     int target_distance = (TileMap->todo.empty())? 0 : TileMap->get_tile(TileMap->todo.top(),"tile compare1").minstep;
     if(a.cleaned != b.cleaned) return !a.cleaned;
-    else if(abs(target_distance - a.minstep) != abs(target_distance - b.minstep)) return (abs(target_distance - a.minstep) < abs(target_distance - b.minstep));
+    else if(abs(target_distance - a.minstep) != abs(target_distance - b.minstep)){
+        return (abs(target_distance - a.minstep) < abs(target_distance - b.minstep));
+    }
     else return false;
 }
 
@@ -178,7 +181,7 @@ void tile_map::print_out(int t){
             else if(t == 2) printf("%3d ", map[i][j].minstep);
             else{
                 if(is_walkable(position(i,j))) printf("%c ", map[i][j].cleaned? '.' : '+');
-                else printf("M ");
+                else printf("W ");
             }
         }
         printf("\n");
@@ -190,7 +193,7 @@ void tile_map::print_out(int t){
 robot::robot(){
     pos = Rpos = TileMap->Rpos;
     maxbattery = battery = TileMap->B;
-    while(!footprint.empty()) footprint.pop();
+    footprint.clear();
 }
 void robot::jump(){
     tile_map &tm = *TileMap;
@@ -201,7 +204,7 @@ void robot::jump(){
     tile &target = tm.get_tile(tm.todo.top(),"robot jump2");
     tm.todo.pop();
     for(position p:target.related){
-        footprint.push(p);
+        footprint.push_back(p);
         if(!tm.get_tile(p,"robot jump3").cleaned) tm.get_tile(p,"robot jump3").clean();
     }
     pos = target.pos;
@@ -225,7 +228,7 @@ void robot::walk(){
     }
     //移動至最好的位置
     pos = best;
-    if(best != Rpos) footprint.push(best);
+    if(best != Rpos) footprint.push_back(best);
     if(!tm.get_tile(best,"robot walk4").cleaned) tm.get_tile(best,"robot walk4.5").clean();
     //減少電量
     if(is_on_recharge()) battery = maxbattery;
@@ -245,10 +248,11 @@ void robot::hop(){
     else{
         if(!tm.get_tile(best.pos,"robot hop3").cleaned) tm.get_tile(best.pos,"robot hop2").clean();
         for(int i=0;i<best.related.size();i++){
-            footprint.push(best.related[i]);
+            footprint.push_back(best.related[i]);
+            if(best.related[i] == Rpos) battery = maxbattery;
+            else battery--;
         }
         pos = best.pos;
-        battery -= (best.related.size());
     }
 }
 bool robot::is_on_recharge(){
@@ -258,9 +262,12 @@ void robot::print_out(ofstream& ofs){
     int length = footprint.size() - 1l;
     if(length == 1) length = 0;
     ofs << length << endl;
-    while(!footprint.empty()){
-        ofs << footprint.front().row << " " << footprint.front().col << endl;
-        footprint.pop();
+    // while(!footprint.empty()){
+    //     ofs << footprint.front().row << " " << footprint.front().col << endl;
+    //     footprint.pop();
+    // }
+    for(position p : footprint){
+        ofs << p.row << " " << p.col << endl;
     }
 }
 
@@ -312,7 +319,7 @@ int main(int argc, char *argv[]){
     TileMap = new tile_map(ifstream(argv[1],ios::in));
     robot* Robot = new robot();
     // TileMap->print_out(2);
-    printf("#build time: %.3fs, \n", float(clock() - start)/CLOCKS_PER_SEC);
+    // printf("#build time: %.3fs, \n", float(clock() - start)/CLOCKS_PER_SEC);
     set_maxBFS(float(clock() - start)/CLOCKS_PER_SEC);
     while(!TileMap->todo.empty()){
         last = clock();
@@ -321,15 +328,15 @@ int main(int argc, char *argv[]){
             Robot->hop();
             while(!TileMap->todo.empty() && TileMap->get_tile(TileMap->todo.top(),"robot jump1").cleaned) TileMap->todo.pop();
         }
-        if(double(clock()-start)/CLOCKS_PER_SEC + Robot->footprint.size()/250000.0 > 9 &&
+        if(double(clock()-start)/CLOCKS_PER_SEC + Robot->footprint.size()/250000.0 > 9 &&\
             TileMap->todo.size() > TileMap->walkable_num/3) max_BFS = 0;
-        DEBUG(*Robot);
-        printf("round time: %.3lfs\n", float(clock()-last)/CLOCKS_PER_SEC);
+        // DEBUG(*Robot);
+        // printf("round time: %.3lfs\n", float(clock()-last)/CLOCKS_PER_SEC);
     }
-    Robot->footprint.push(Robot->Rpos);
+    Robot->footprint.push_back(Robot->Rpos);
     // TileMap->print_out(3);
     last = clock();
     Robot->print_out(outfile);
-    printf("output file time: %.3lfs\n", double(clock() - last)/CLOCKS_PER_SEC);
-    printf("time: %.3lfs\n", double(clock() - start)/CLOCKS_PER_SEC);
+    // printf("output file time: %.3lfs\n", double(clock() - last)/CLOCKS_PER_SEC);
+    // printf("time: %.3lfs\n", double(clock() - start)/CLOCKS_PER_SEC);
 }
