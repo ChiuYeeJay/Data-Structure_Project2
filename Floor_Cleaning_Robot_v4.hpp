@@ -44,7 +44,7 @@ public:
     position pos;
     vector<position> related;
 public:
-    tile(int t = unknown, int row = -1, int col = -1);
+    tile(){}
     void set(int t, int row, int col);
     void clean();
 };
@@ -57,6 +57,7 @@ public:
     stack<position> todo;
     int cols, rows;
     int B;
+    int walkable_num;
     int search_id;
 public:
     tile_map(ifstream infile);

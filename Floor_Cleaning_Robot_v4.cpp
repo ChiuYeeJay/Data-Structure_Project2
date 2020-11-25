@@ -21,18 +21,6 @@ int CharToType(char c){
     }
 }
 
-void set_maxBFS(float t){
-    // if(t<0.1) max_BFS = 500;
-    // else if(t < 0.5) max_BFS = 250;
-    // else if(t< 0.75) max_BFS = 150;
-    // else if(t < 1) max_BFS = 80;
-    // else if(t < 2) max_BFS = 50;
-    // else if(t < 3) max_BFS = 20;
-    // else max_BFS = 0;
-    if(t<3) max_BFS = 10000;
-    else max_BFS = 0;
-}
-
 //class trio
 trio::trio(position p, int s, vector<position> v){
     pos = p;
@@ -40,11 +28,23 @@ trio::trio(position p, int s, vector<position> v){
     related = v;
 }
 
+void set_maxBFS(float t){
+    if(t < 0.3) max_BFS = 500;
+    else if(t < 1) max_BFS = 100;
+    else if(t < 1.5) max_BFS = 75;
+    else if(t < 2) max_BFS = 35;
+    else if(t < 2.6) max_BFS = 20;
+    else max_BFS = 0;
+}
+
+bool tile_compare(const tile& a, const tile& b){
+    int target_distance = (TileMap->todo.empty())? 0 : TileMap->get_tile(TileMap->todo.top(),"tile compare1").minstep;
+    if(a.cleaned != b.cleaned) return !a.cleaned;
+    else if(abs(target_distance - a.minstep) != abs(target_distance - b.minstep)) return (abs(target_distance - a.minstep) < abs(target_distance - b.minstep));
+    else return false;
+}
 
 //class tile
-tile::tile(int t, int row, int col){
-    set(t,row,col);
-}
 void tile::set(int t, int row, int col){
     minstep = -1;
     cleaned = false;
@@ -123,12 +123,12 @@ void tile_map::calculate_minstep(){
             todo.push(tp.pos);
         }
         Q.pop();
-        // printf("h\n");
     }
+    walkable_num = todo.size();
 }
 tile& tile_map::get_tile(position p, const char* origin){
     if(p.row<0 || p.row>=rows || p.col<0 || p.col>=cols){
-        printf("Error: get_tile failed, from %s\n", origin);
+        printf("Error: get_tile failed, from %s, (%d,%d)\n", origin, p.row, p.col);
         exit(6);
     }
     // printf("get_tile(%d,%d):%d\n", p.row, p.col, map[p.row][p.col].minstep);
@@ -148,10 +148,10 @@ trio tile_map::find_uncleaned(position init, int battery){
     get_tile(Rpos,"root clean").search_visited = search_id;
     while(!Q.empty() && count++<max_BFS){
         tp = Q.front();
+        tt = get_tile(tp.pos,"find_uncleaned1");
         if(best.step != -1 && best.step < tp.step) break;
         vp = tp.related;
         vp.push_back(tp.pos);
-        tt = get_tile(tp.pos,"find_uncleaned1");
         if(tt.search_visited != search_id && tp.step + tt.minstep < battery-1){
             if(tt.cleaned){
                 for(int i=0;i<4;i++){
@@ -160,7 +160,7 @@ trio tile_map::find_uncleaned(position init, int battery){
                     }
                 }
             }
-            if(best.step == -1 || tile_compare(tt,get_tile(best.pos,"find_uncleaned2"))){
+            else if(best.step == -1 || tile_compare(tt,get_tile(best.pos,"find_uncleaned2"))){
                 best = tp;
                 best.related.push_back(tp.pos);
             }
@@ -191,7 +191,6 @@ robot::robot(){
     pos = Rpos = TileMap->Rpos;
     maxbattery = battery = TileMap->B;
     while(!footprint.empty()) footprint.pop();
-    // footprint.push(Rpos);
 }
 void robot::jump(){
     tile_map &tm = *TileMap;
@@ -252,12 +251,6 @@ void robot::hop(){
         battery -= (best.related.size());
     }
 }
-bool tile_compare(const tile& a, const tile& b){
-    int target_distance = (TileMap->todo.empty())? 0 : TileMap->get_tile(TileMap->todo.top(),"tile compare1").minstep;
-    if(a.cleaned != b.cleaned) return !a.cleaned;
-    else if(abs(target_distance - a.minstep) != abs(target_distance - b.minstep)) return (abs(target_distance - a.minstep) < abs(target_distance - b.minstep));
-    else return false;
-}
 bool robot::is_on_recharge(){
     return pos == Rpos;
 }
@@ -276,10 +269,9 @@ void DEBUG(robot &R){
     static int count = 0;
     static bool stop = false;
     static int maxround;
-    printf("(%d,%d), battery=%d, footprintsize=%ld, todosize=%ld\n", R.pos.row, R.pos.col,\
-     R.battery, R.footprint.size(), TileMap->todo.size());
-    if(!stop) cin >> d;
-    // if(!stop) d = "a";
+    printf("footprintsize=%ld, todosize=%ld, Max_BFS=%d\n", R.footprint.size(), TileMap->todo.size(), max_BFS);
+    // if(!stop) cin >> d;
+    if(!stop) d = "a";
     else{
         if(maxround > count){
             count++;
@@ -288,7 +280,7 @@ void DEBUG(robot &R){
             stop = false;
             maxround = 0;
             count = 0;
-            TileMap->print_out(3);
+            // TileMap->print_out(3);
         }
     }
 
@@ -311,7 +303,6 @@ void DEBUG(robot &R){
 }
 
 int main(int argc, char *argv[]){
-    string debug;
     start = clock();
     if(argc != 2) {
         printf("Error: amount of file in file out is wrong\n");
@@ -320,7 +311,7 @@ int main(int argc, char *argv[]){
     // ofstream outfile("final.path",ios::out);
     TileMap = new tile_map(ifstream(argv[1],ios::in));
     robot* Robot = new robot();
-    TileMap->print_out(2);
+    // TileMap->print_out(2);
     printf("#build time: %.3fs, \n", float(clock() - start)/CLOCKS_PER_SEC);
     set_maxBFS(float(clock() - start)/CLOCKS_PER_SEC);
     while(!TileMap->todo.empty()){
@@ -329,14 +320,16 @@ int main(int argc, char *argv[]){
         while(!Robot->is_on_recharge()) {
             Robot->hop();
             while(!TileMap->todo.empty() && TileMap->get_tile(TileMap->todo.top(),"robot jump1").cleaned) TileMap->todo.pop();
-            // printf("#hop:(%d,%d)\n", Robot->pos.row, Robot->pos.col);
         }
-        // printf("\n");
+        if(double(clock()-start)/CLOCKS_PER_SEC + Robot->footprint.size()/250000.0 > 9 &&
+            TileMap->todo.size() > TileMap->walkable_num/3) max_BFS = 0;
         DEBUG(*Robot);
         printf("round time: %.3lfs\n", float(clock()-last)/CLOCKS_PER_SEC);
     }
     Robot->footprint.push(Robot->Rpos);
     // TileMap->print_out(3);
+    last = clock();
     Robot->print_out(outfile);
+    printf("output file time: %.3lfs\n", double(clock() - last)/CLOCKS_PER_SEC);
     printf("time: %.3lfs\n", double(clock() - start)/CLOCKS_PER_SEC);
 }
